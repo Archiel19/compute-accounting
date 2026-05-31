@@ -10,10 +10,10 @@ TARGET_PATH="$INSTALL_DIR/$WRAPPER_NAME"
 echo "=== Slurm Wrapper Uninstaller ==="
 
 
-# Remove wrapper script
-if [ -f "$TARGET_PATH" ]; then
+# Remove install directory and wrapper script
+if [ -d "$INSTALL_DIR" ]; then
     echo "[INFO] Removing wrapper at $TARGET_PATH..."
-    rm "$TARGET_PATH"
+    rm -r "$INSTALL_DIR"
     echo "[SUCCESS] Removed wrapper at $TARGET_PATH"
 else
     echo "[WARNING] No wrapper found at $TARGET_PATH"

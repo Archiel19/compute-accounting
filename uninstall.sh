@@ -42,11 +42,8 @@ if grep -q "Slurm Wrapper Custom Alias" "$HOME/.zshrc"; then
     ZSHRC_UPDATED=true
 fi
 
-UPDATE_CMD=""
-[[ "$ZSHRC_UPDATED" == true ]] && UPDATE_CMD="source $HOME/.zshrc"
-[[ "$BASHRC_UPDATED" == true ]] && UPDATE_CMD="$UPDATE_CMD; source $HOME/.bashrc"
-UPDATE_CMD=$(echo "$UPDATE_CMD" | sed 's/^; //') # Remove leading semicolon if exists
+[[ "$ZSHRC_UPDATED" == true ]] && source $HOME/.zshrc
+[[ "$BASHRC_UPDATED" == true ]] && source $HOME/.bashrc
 
 echo "================================="
 echo "[DONE] Uninstallation complete!"
-[[ -n "$UPDATE_CMD" ]] && echo "Please restart your terminal or run: $UPDATE_CMD"

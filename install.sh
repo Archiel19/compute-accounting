@@ -50,6 +50,7 @@ if grep -q "Slurm Wrapper Custom Alias" "$PRIMARY_RC"; then
 else
     echo "$ALIAS_BLOCK" >> "$PRIMARY_RC"
     echo "[SUCCESS] Added alias to $PRIMARY_RC"
+    source $PRIMARY_RC
 fi
 
 # Passive injection for the alternate shell *only if it already exists*
@@ -61,13 +62,9 @@ if [ -f "$ALTERNATE_RC" ]; then
     if ! grep -q "Slurm Wrapper Custom Alias" "$ALTERNATE_RC"; then
         echo "$ALIAS_BLOCK" >> "$ALTERNATE_RC"
         echo "[SUCCESS] Secondary mirror added to existing $ALTERNATE_RC"
-        ALTERNATE_UPDATED=true
+        source $ALTERNATE_RC
     fi
 fi
 
-
-UPDATE_CMD="source $PRIMARY_RC"
-[[ "$ALTERNATE_UPDATED" == true ]] && UPDATE_CMD="$UPDATE_CMD; source $ALTERNATE_RC"
 echo "================================="
 echo "[DONE] Installation complete!"
-echo "Please restart your terminal or run: $UPDATE_CMD"

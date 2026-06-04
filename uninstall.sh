@@ -18,7 +18,8 @@ else
     echo "[WARNING] No wrapper found at $TARGET_PATH"
 fi
 
-# Remove alias from profile
+# Disable wrapper and remove function from profile
+unset sbatch
 CONFIG_FILE="$HOME/.profile"
 if grep -q "Sbatch Wrapper" "$CONFIG_FILE"; then
     sed -i.bak "/# >>> Sbatch Wrapper >>>/,/# <<< Sbatch Wrapper <<</d" "$CONFIG_FILE"

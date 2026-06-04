@@ -4,10 +4,10 @@
 set -e
 
 WRAPPER_NAME="sbatch_wrapper.py"
-INSTALL_DIR="$HOME/.slurm-wrapper"
+INSTALL_DIR="$HOME/.sbatch-wrapper"
 TARGET_PATH="$INSTALL_DIR/$WRAPPER_NAME"
 
-echo "=== Slurm Wrapper Uninstaller ==="
+echo "=== Sbatch Wrapper Uninstaller ==="
 
 # Remove install directory and wrapper script
 if [ -d "$INSTALL_DIR" ]; then
@@ -20,10 +20,11 @@ fi
 
 # Remove alias from profile
 CONFIG_FILE="$HOME/.profile"
-if grep -q "Slurm Wrapper" "$CONFIG_FILE"; then
-    sed -i.bak "/# >>> Slurm Wrapper >>>/,/# <<< Slurm Wrapper <<</d" "$CONFIG_FILE"
+if grep -q "Sbatch Wrapper" "$CONFIG_FILE"; then
+    sed -i.bak "/# >>> Sbatch Wrapper >>>/,/# <<< Sbatch Wrapper <<</d" "$CONFIG_FILE"
     echo "[SUCCESS] Removed alias from $CONFIG_FILE"
 fi
 
 echo "================================="
 echo "[DONE] Uninstallation complete!"
+echo "Run 'source \$HOME/.profile' or log in again for changes to take place"

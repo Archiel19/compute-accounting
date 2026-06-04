@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import signal
 
 project_stage_tags = [
     "data",
@@ -26,6 +27,11 @@ run_type_tags = [
 
 standalone_tags = ["data"]
 
+def signal_handler(sig, frame):
+    print()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 def parse_tag_string(tag_string: str, strict: bool = True):
     """Extract project name and tags from a string.
@@ -160,6 +166,7 @@ def tag_comment(project_name: str, project_stage: str, run_type: str = None):
         tags.append(run_type)
     print(f"Project name: {project_name}")
     print(f"Job tags: {project_stage}, {run_type}")
+    print()
     return ",".join(tags)
 
 
@@ -177,11 +184,13 @@ def prompt_index(tags: list, prompt_name: str):
         The selected tag string (either one from `tags` or a validated custom
         tag entered by the user).
     """
-    print("\n")
+    print()
     for i, tag in enumerate(tags):
         print(f"{tag:.<25}{i}")
+    print()
     while True:
         choice = input(f"\nSelect a {prompt_name.upper()} tag: ").strip()
+        print()
         try:
             idx = int(choice)
         except ValueError:
@@ -276,14 +285,14 @@ if __name__ == "__main__":
         nargs="?",
         help="custom run type tag name, mutually exclusive with --tags",
     )
-    parser.add_argument("script_path", type=str, help="Slurm script path")
+    parser.add_argument("script_path", nargs=2, help="sbatch command + Slurm script path")
     parser.add_argument("script_args", nargs="*", help="Slurm script arguments")
     args = parser.parse_args()
 
     # Look for Slurm script comments
-    with open(args.script_path, "r") as f:
+    with open(args.script_path[1], "r") as f:
         script_src = f.read()
-    comment_match = re.search(r"#SBATCH --comment\s+[\"']?([-\w,]+)[\"']?", script_src)
+    comment_match = re.search(r"#SBATCH --comment=[\"']?([-\w,]+)[\"']?", script_src)
 
     # Define tags
     if args.tags:
@@ -304,7 +313,7 @@ if __name__ == "__main__":
 
     # Run original sbatch command and save tags
     result = subprocess.run(
-        [args.script_path, *args.script_args],
+        [*args.script_path, *args.script_args],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -319,6 +328,5 @@ if __name__ == "__main__":
     if slurm_id_match:
         slurm_job_id = slurm_id_match.group(1)
 
-    # print(f"If you want to update the tags, run:\n\n    scontrol update job  comment=<project name>,<project stage>,<run type>\n{tags_help_msg}")
     save_tags(slurm_job_id, tags)
     sys.exit(result.returncode)

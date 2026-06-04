@@ -31,7 +31,7 @@ should be taken from the following lists:
 
 At the most basic level, it is enough to add a comment to your Slurm script like so:
 ```
-#SBATCH --comment [<project_name>,]<project_stage>,<run_type>
+#SBATCH --comment=[<project_name>,]<project_stage>,<run_type>
 ```
 
 But to make sure that everyone uses (valid) tags, we have written an **`sbatch` wrapper**

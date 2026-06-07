@@ -5,12 +5,26 @@ spent to develop [Moshi](https://arxiv.org/abs/2410.00037) by Kyutai, our goal i
 break down the compute that the members of the **[IMAGINE](https://imagine-lab.enpc.fr/)** 
 computer vision laboratory spend on the **Jean Zay** supercomputing cluster.
 
+## Index
+
+- [Accounting mechanism](#accounting-mechanism)
+    - [Project stage tags](#project-stage-tags)
+    - [Run type tags](#run-type-tags)
+- [How to do it?](#how-to-do-it)
+    - [`sbatch` wrapper documentation](#sbatch-wrapper-documentation)
+        - [Project name](#project-name)
+        - [Tags](#tags)
+- [Install](#install)
+- [Uninstall](#uninstall)
+
+# Accounting mechanism
+
 The idea is simple: to tag every launched job indicating a **project name**, a **project stage**, and a **run type**.
 
 The **project name** is of course flexible, but the **project stage** and the **run type** tags
 should be taken from the following lists:
 
-### Project stage tags
+## Project stage tags
 - `data`: build or process a dataset (does not require a **run type** tag)
 - `explore`: try ideas until something works
 - `baseline`: run an in-house baseline or reproduce one from related work
@@ -19,7 +33,7 @@ should be taken from the following lists:
 - `final`: final version (hopefully)
 - `other`: custom tag
 
-### Run type tags
+## Run type tags
 - `train`: train a model in a single stage
 - `pre-train`: pre-train a model on a large amount of data
 - `post-train`: post-train or fine-tune the model
@@ -27,7 +41,7 @@ should be taken from the following lists:
 - `debug`: diagnose and fix a known issue 
 - `other`: custom tag
 
-## How to do it?
+# How to do it?
 
 At the most basic level, it is enough to add a comment to your Slurm script like so:
 ```
@@ -38,9 +52,9 @@ But to make sure that everyone uses (valid) tags, we have written an **`sbatch` 
 that checks your Slurm script for a comment like the one shown above, or otherwise
 lets you define the tags from the command line or interactively.
 
-## Sbatch wrapper documentation
+## `sbatch` wrapper documentation
 
-> **WARNING**: This is a very first implementation of the wrapper, so bugs are likely to occur!
+> **WARNING**: This is a very first implementation of the wrapper, so there might be a bug or two!
 
 > **NOTE**: You can always run `sbatch --help` to display the information in this section once the wrapper is installed
 
@@ -70,14 +84,15 @@ If you do not specify any tags anywhere, the wrapper will prompt you for them in
 launching scripts, so be careful!
 
 
-## Install
-To install the `sbatch` wrapper script, run this command after logging in to Jean Zay:
+# Install
+To install the `sbatch` wrapper script, run this command on your Jean Zay account:
 ```
 curl -sSL https://raw.githubusercontent.com/Archiel19/compute-accounting/main/install.sh | bash
 ```
+> **WARNING**: For the tags to be persistent, the option `AccountingStoreFlags = job_comment` should be enabled in `slurm.conf`
 
-## Uninstall
-To uninstall the `sbatch` wrapper script, run this command after logging in to Jean Zay:
+# Uninstall
+To uninstall the `sbatch` wrapper script, run this command on your Jean Zay account:
 ```
 curl -sSL https://raw.githubusercontent.com/Archiel19/compute-accounting/main/uninstall.sh | bash
 ```

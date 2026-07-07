@@ -31,15 +31,13 @@ should be taken from the following lists:
 - `ablate`: identify choices that do not have much of an impact
 - `hyperparam`: hyperparameter search to improve performance
 - `final`: final version (hopefully)
-- `other`: custom tag
 
 ## Run type tags
 - `train`: train a model in a single stage
 - `pre-train`: pre-train a model on a large amount of data
 - `post-train`: post-train or fine-tune the model
 - `evaluate`: evaluate the performance of the model (includes probing and sample generation)
-- `debug`: diagnose and fix a known issue 
-- `other`: custom tag
+- `debug`: diagnose and fix a known issue
 
 # How to do it?
 

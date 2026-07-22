@@ -4,9 +4,9 @@ import argparse
 import difflib
 import os
 import re
+import signal
 import subprocess
 import sys
-import signal
 
 project_stage_tags = [
     "data",
@@ -15,7 +15,6 @@ project_stage_tags = [
     "ablate",
     "hyperparam",
     "final",
-    "other",
 ]
 
 run_type_tags = [
@@ -24,18 +23,39 @@ run_type_tags = [
     "post-train",
     "evaluate",
     "debug",
-    "other",
 ]
 
+project_stage_info = """Project stage tags:
+- `data`: build or process a dataset (does not require a 'run type' tag)
+- `explore`: try ideas until something works
+- `baseline`: run an in-house baseline or reproduce one from related work
+- `ablate`: identify choices that do not have much of an impact
+- `hyperparam`: hyperparameter search to improve performance
+- `final`: final version (hopefully)
+- `other`: custom tag
+"""
+
+
+run_type_info = """Run type tags:
+- `train`: train a model in a single stage
+- `pre-train`: pre-train a model on a large amount of data
+- `post-train`: post-train or fine-tune the model
+- `evaluate`: evaluate the performance of the model (includes probing and sample generation)
+- `debug`: diagnose and fix a known issue
+"""
+
 standalone_tags = ["data"]
+
 
 def signal_handler(sig, frame):
     print()
     sys.exit(0)
 
+
 signal.signal(signal.SIGINT, signal_handler)
 
-def parse_tag_string(tag_string: str, strict: bool = True):
+
+def parse_tag_string(tag_string: str):
     """Extract project name and tags from a string.
 
     Expects at least two comma-separated values: the project name and the
@@ -44,11 +64,9 @@ def parse_tag_string(tag_string: str, strict: bool = True):
 
     Args:
         tag_string: Comma-separated tag string, e.g. "proj,baseline,train".
-        strict: If True, fail on unrecognized project stage/run type tags;
-            otherwise accept them as custom tags.
 
     Returns:
-        A comma-separated tag comment string like ("project_name,project_stage[,run_type]").
+        A comma-separated tag comment string like ("[project_name,]project_stage,run_type").
     """
     tags = tag_string.split(",")
     if len(tags) < 2:
@@ -59,30 +77,29 @@ def parse_tag_string(tag_string: str, strict: bool = True):
 
     # Test if first tag is project stage or project name
     tmp_project_stage = verify_and_fix_tag(tags[0], project_stage_tags)
-    if not tmp_project_stage: # First tag is project name
+    if not tmp_project_stage:  # First tag is project name
         project_name = clean_custom_tag(tags[0])
         tags = tags[1:]  # Pop project name tag
         project_stage = verify_and_fix_tag(tags[0], project_stage_tags)
-    else: # First tag is project stage; project name is missing
-        project_name = 'default'
+    else:  # First tag is project stage; project name is missing
+        project_name = "default"
         project_stage = tmp_project_stage
-        
-    if not project_stage:
-        if strict:
-            print(f"[ERROR] Could not match {tags[0]} to any project stage tags")
-            sys.exit(1)
-        project_stage = clean_custom_tag(tags[0])
-        print(f"Using custom project stage tag: {project_stage}")
 
-    run_type = ""
-    if len(tags) > 1:  # Still a tag remaining
-        run_type = verify_and_fix_tag(tags[1], run_type_tags)
-        if not run_type:
-            if strict:
-                print(f"[ERROR] Could not match {tags[1]} to any run type tags")
-                sys.exit(1)
-            run_type = clean_custom_tag(tags[1])
-            print(f"Using custom run type tag: {run_type}")
+    if not project_stage:
+        print(f"[ERROR] Could not match {tags[0]} to any project stage tags")
+        print(project_stage_info)
+        sys.exit(1)
+
+    if len(tags) < 1:
+        print("[ERROR] Expected a run type tag, but there are no more tags left to parse")
+        print(run_type_info)
+        sys.exit(1)
+        
+    run_type = verify_and_fix_tag(tags[1], run_type_tags)
+    if not run_type:
+        print(f"[ERROR] Could not match {tags[1]} to any run type tags")
+        print(run_type_info)
+        sys.exit(1)
 
     return tag_comment(project_name, project_stage, run_type)
 
@@ -111,7 +128,7 @@ def clean_custom_tag(raw_tag: str):
     Normalization rules:
     - Convert to lowercase
     - Replace spaces with underscores
-    
+
     Validation rules:
     - Only alphanumeric characters, dashes and underscores are allowed
     - At least one alphanumeric character must be present
@@ -129,8 +146,8 @@ def clean_custom_tag(raw_tag: str):
     if re.search(r"[\w-]", tag) and re.search(r"[a-zA-Z0-9]", tag):
         return tag
     print(
-        "[ERROR] Tags and project names must contain at least one" +
-        "alphanumeric character, and optional dashes and underscores"
+        "[ERROR] Tags and project names must contain at least one"
+        + "alphanumeric character, and optional dashes and underscores"
     )
     sys.exit(1)
 
@@ -159,9 +176,11 @@ def tag_comment(project_name: str, project_stage: str, run_type: str = None):
         sys.exit(1)
     if not project_stage:
         print("[ERROR] Project stage tag missing!")
+        print(project_stage_info)
         sys.exit(1)
     if project_stage not in standalone_tags and not run_type:
         print("[ERROR] Run type tag missing!")
+        print(run_type_info)
         sys.exit(1)
     tags = [project_name, project_stage]
     if run_type:
@@ -175,16 +194,14 @@ def tag_comment(project_name: str, project_stage: str, run_type: str = None):
 def prompt_index(tags: list, prompt_name: str):
     """Prompt the user to choose a tag by numeric index from `tags`.
 
-    Displays the available tags with indices and accepts a numeric choice. If
-    the chosen tag is the literal "other", prompts for a custom tag.
+    Displays the available tags with indices and accepts a numeric choice.
 
     Args:
         tags: List of tag strings to present to the user.
         prompt_name: Short tag name used in prompts (e.g. "project stage").
 
     Returns:
-        The selected tag string (either one from `tags` or a validated custom
-        tag entered by the user).
+        The selected tag string (from `tags`).
     """
     print()
     for i, tag in enumerate(tags):
@@ -201,20 +218,7 @@ def prompt_index(tags: list, prompt_name: str):
         if not (0 <= idx < len(tags)):
             print(f"Index out of range. Enter a number between 0 and {len(tags) - 1}")
             continue
-        selected = tags[idx]
-        if selected.lower() == "other":
-            while True:
-                selected = input(f"Enter custom {prompt_name}: ").strip()
-                if not selected:
-                    print("Tag cannot be empty")
-                    continue
-                if re.search(r"[\w-]", selected):
-                    if re.search(r"[a-zA-Z0-9]", selected):
-                        break
-                    print("Tag must contain at least one alphanumeric character")
-                else:
-                    print("Only alphanumeric characters, dashes and underscores are allowed")
-        return selected
+        return tags[idx]
 
 
 def save_tags(slurm_job_id: int, tags: str):
@@ -225,7 +229,7 @@ def save_tags(slurm_job_id: int, tags: str):
     Args:
         slurm_job_id: Slurm job id. May be missing.
         tags: Comma-separated tag string to save as the job comment.
-        
+
     Exits:
         If no job id can be found or if scontrol command fails.
     """
@@ -247,21 +251,16 @@ if __name__ == "__main__":
         description=f"""Slurm sbatch wrapper to enforce tag usage.
         If your script already has an '#SBATCH --comment <project name>,
         <project stage>,<run type>' directive, this wrapper will only verify your tags. 
-        Otherwise, you can specify the tags from the command line using either 
-        the '--tags' option for standard tags, or the '--project_stage' and 
-        '--run_type' options together for custom tags. The standard tag options 
-        are [{", ".join(project_stage_tags[:-1])}] for PROJECT STAGE, and 
-        [{", ".join(run_type_tags[:-1])}] for RUN TYPE. If you don't specify any 
+        Otherwise, you can specify the tags from the command line using 
+        the '--tags' option. The standard tag options 
+        are [{", ".join(project_stage_tags)}] for PROJECT STAGE, and 
+        [{", ".join(run_type_tags)}] for RUN TYPE. If you don't specify any 
         tags, the script will prompt you to do so interactively. This may crash 
         automatic launching scripts that make calls to sbatch, so remember to add your tags!
         """,
         add_help=True,
     )
 
-    tags_help_msg = f"""
-    Project stage tags: [{", ".join(project_stage_tags[:-1])}];
-    Run type tags:      [{", ".join(run_type_tags[:-1])}]"""
-    
     parser.add_argument(
         "--project",
         type=str,
@@ -269,42 +268,28 @@ if __name__ == "__main__":
         default="default",
         help="project name, overrides Slurm script comments",
     )
+
     parser.add_argument(
         "--tags",
         type=str,
         nargs="?",
-        help=f"project stage tag and run type tag (comma-separated), overrides Slurm script comments. {tags_help_msg}",
+        help=f"project stage tag and run type tag (comma-separated), overrides Slurm script comments. {project_stage_info}. {run_type_info}",
     )
-    parser.add_argument(
-        "--project_stage",
-        type=str,
-        nargs="?",
-        help="custom project stage tag name, mutually exclusive with --tags",
-    )
-    parser.add_argument(
-        "--run_type",
-        type=str,
-        nargs="?",
-        help="custom run type tag name, mutually exclusive with --tags",
-    )
-    parser.add_argument("script_path", nargs=2, help="sbatch command + Slurm script path")
+    parser.add_argument("script_path", type=str, help="Slurm script path")
     parser.add_argument("script_args", nargs="*", help="Slurm script arguments")
     args = parser.parse_args()
 
     # Look for Slurm script comments
-    with open(args.script_path[1], "r") as f:
+    with open(args.script_path, "r") as f:
         script_src = f.read()
     comment_match = re.search(r"#SBATCH --comment=[\"']?([-\w,]+)[\"']?", script_src)
 
     # Define tags
     if args.tags:
         tags = parse_tag_string(",".join([args.project, args.tags]))
-    elif args.project_stage or args.run_type:
-        tag_string = ",".join([args.project, args.project_stage, args.run_type])
-        tags = parse_tag_string(tag_string, strict=False)
     elif comment_match:
         tag_string = comment_match.group(1)
-        tags = parse_tag_string(tag_string, strict=False)
+        tags = parse_tag_string(tag_string)
     else:
         print("[WARNING] No tags specified for the job!")
         project_stage = prompt_index(project_stage_tags, "project stage")
@@ -315,7 +300,7 @@ if __name__ == "__main__":
 
     # Run original sbatch command and save tags
     result = subprocess.run(
-        [*args.script_path, *args.script_args],
+        ["/usr/bin/sbatch", args.script_path, *args.script_args],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

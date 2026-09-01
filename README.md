@@ -74,10 +74,6 @@ Otherwise, you should use one of the following options to pass the tags in the c
     ```
     > **NOTE**: The wrapper has some typo tolerance, but the order of the tags is important
 
-- If you want to use at least one custom tag:
-    ```
-    sbatch --project_stage <project stage> --run_type <run type> ...
-    ```
 If you do not specify any tags anywhere, the wrapper will prompt you for them interactively. This might break your fancy
 launching scripts, so be careful!
 

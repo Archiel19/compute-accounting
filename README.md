@@ -84,12 +84,11 @@ The native Slurm `--comment` option is reserved for compute-accounting metadata
 when the wrapper is installed. Free-form researcher comments are not supported
 there.
 
-- If you want to use at least one custom tag:
-    ```
-    sbatch --project_stage <project stage> --run_type <run type> ...
-    ```
-If you do not specify any tags anywhere, the wrapper will prompt you for them interactively. This might break your fancy
-launching scripts, so be careful!
+If you do not specify any tags, the wrapper prompts for them when run from an
+interactive terminal. In non-interactive environments, such as Hydra Submitit
+or CI jobs, it exits with an error instead of waiting for input. Automated
+launchers must therefore provide a valid Slurm `--comment` directive or use
+the wrapper's `--project` and `--tags` options.
 
 
 # Install

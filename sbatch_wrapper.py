@@ -32,7 +32,6 @@ project_stage_info = """Project stage tags:
 - `ablate`: identify choices that do not have much of an impact
 - `hyperparam`: hyperparameter search to improve performance
 - `final`: final version (hopefully)
-- `other`: custom tag
 """
 
 
@@ -77,7 +76,7 @@ def parse_tag_string(tag_string: str):
     # Test if first tag is project stage or project name
     tmp_project_stage = verify_and_fix_tag(tags[0], project_stage_tags)
     if not tmp_project_stage:  # First tag is project name
-        project_name = clean_custom_tag(tags[0])
+        project_name = clean_project_name(tags[0])
         tags = tags[1:]  # Pop project name tag
         project_stage = verify_and_fix_tag(tags[0], project_stage_tags)
     else:  # First tag is project stage; project name is missing
@@ -121,8 +120,8 @@ def verify_and_fix_tag(raw_tag: str, tag_list: list):
     return matched_tag[0]
 
 
-def clean_custom_tag(raw_tag: str):
-    """Normalize and validate a user-provided custom tag or project name.
+def clean_project_name(raw_project_name: str):
+    """Normalize and validate a user-provided project name.
 
     Normalization rules:
     - Convert to lowercase
@@ -133,7 +132,7 @@ def clean_custom_tag(raw_tag: str):
     - At least one alphanumeric character must be present
 
     Args:
-        raw_tag: Raw tag string provided by the user.
+        raw_project_name: Raw project name provided by the user.
 
     Returns:
         The cleaned tag string.
@@ -141,12 +140,12 @@ def clean_custom_tag(raw_tag: str):
     Exits:
         If the tag does not meet the validation conditions.
     """
-    tag = raw_tag.lower().replace(" ", "_")
+    tag = raw_project_name.lower().replace(" ", "_")
     if re.search(r"[\w-]", tag) and re.search(r"[a-zA-Z0-9]", tag):
         return tag
     print(
-        "[ERROR] Tags and project names must contain at least one"
-        + "alphanumeric character, and optional dashes and underscores"
+        "[ERROR] Project names must contain at least one alphanumeric "
+        "character, and optional dashes and underscores"
     )
     sys.exit(1)
 

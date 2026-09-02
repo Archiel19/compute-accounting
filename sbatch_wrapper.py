@@ -58,9 +58,8 @@ signal.signal(signal.SIGINT, signal_handler)
 def parse_tag_string(tag_string: str):
     """Extract project name and tags from a string.
 
-    Expects at least two comma-separated values: the project name and the
-    project stage. If the project stage is not a standalone tag, expects one
-    additional value indicating the run type.
+    Expects a project stage and, unless the stage is standalone, a run type.
+    The project name is optional and defaults to ``default``.
 
     Args:
         tag_string: Comma-separated tag string, e.g. "proj,baseline,train".
@@ -94,7 +93,7 @@ def parse_tag_string(tag_string: str):
         print("[ERROR] Expected a run type tag, but there are no more tags left to parse")
         print(run_type_info)
         sys.exit(1)
-        
+
     run_type = verify_and_fix_tag(tags[1], run_type_tags)
     if not run_type:
         print(f"[ERROR] Could not match {tags[1]} to any run type tags")
@@ -185,9 +184,11 @@ def tag_comment(project_name: str, project_stage: str, run_type: str = None):
     tags = [project_name, project_stage]
     if run_type:
         tags.append(run_type)
-    print(f"Project name: {project_name}")
-    print(f"Job tags: {project_stage}, {run_type}")
-    print()
+    # Keep stdout identical to native sbatch output: Submitit parses the job id
+    # from it. And might break some researchers fancy scripts, so send it to stderr instead.
+    print(f"Project name: {project_name}", file=sys.stderr)
+    print(f"Job tags: {project_stage}, {run_type}", file=sys.stderr)
+    print(file=sys.stderr)
     return ",".join(tags)
 
 
@@ -221,41 +222,56 @@ def prompt_index(tags: list, prompt_name: str):
         return tags[idx]
 
 
-def save_tags(slurm_job_id: int, tags: str):
-    """Attach tags to a Slurm job.
+def extract_sbatch_comment(sbatch_args: list):
+    """Extract one native ``sbatch --comment`` option.
 
-    Falls back to `SLURM_JOB_ID` environment variable if `slurm_job_id` is invalid.
+    ``sbatch`` accepts both ``--comment=value`` and ``--comment value``.
+    The option is removed from the returned argument list so the caller can
+    add one validated, canonical comment when invoking the real ``sbatch``.
+    Every other native option and script argument is preserved in its original
+    order. Duplicate comments are rejected.
 
-    Args:
-        slurm_job_id: Slurm job id. May be missing.
-        tags: Comma-separated tag string to save as the job comment.
-
-    Exits:
-        If no job id can be found or if scontrol command fails.
+    Returns:
+        A ``(comment, remaining_args)`` tuple. ``comment`` is ``None`` when no
+        command-line comment was supplied.
     """
-    job_id = slurm_job_id or os.getenv("SLURM_JOB_ID")
-    if not job_id:
-        print("[ERROR] Cannot save tags: No SLURM_JOB_ID found")
-        sys.exit(1)
-    cmd = ["scontrol", "update", "job", str(job_id), f"comment={tags}"]
-    try:
-        subprocess.run(cmd, check=True)
-        print(f"Saved tags for job {job_id}")
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Failed to run scontrol: {e}")
-        sys.exit(1)
+    comment = None
+    remaining_args = []
+    index = 0
+    while index < len(sbatch_args):
+        argument = sbatch_args[index]
+        if argument == "--comment":
+            if index + 1 == len(sbatch_args):
+                print("[ERROR] --comment requires a value", file=sys.stderr)
+                sys.exit(2)
+            value = sbatch_args[index + 1]
+            index += 2
+        elif argument.startswith("--comment="):
+            value = argument.removeprefix("--comment=")
+            index += 1
+        else:
+            remaining_args.append(argument)
+            index += 1
+            continue
+
+        if comment is not None:
+            print("[ERROR] Specify at most one --comment option", file=sys.stderr)
+            sys.exit(2)
+        comment = value
+
+    return comment, remaining_args
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=f"""Slurm sbatch wrapper to enforce tag usage.
         If your script already has an '#SBATCH --comment <project name>,
-        <project stage>,<run type>' directive, this wrapper will only verify your tags. 
-        Otherwise, you can specify the tags from the command line using 
-        the '--tags' option. The standard tag options 
-        are [{", ".join(project_stage_tags)}] for PROJECT STAGE, and 
-        [{", ".join(run_type_tags)}] for RUN TYPE. If you don't specify any 
-        tags, the script will prompt you to do so interactively. This may crash 
+        <project stage>,<run type>' directive, this wrapper will only verify your tags.
+        Otherwise, you can specify the tags from the command line using
+        the '--tags' option. The standard tag options
+        are [{", ".join(project_stage_tags)}] for PROJECT STAGE, and
+        [{", ".join(run_type_tags)}] for RUN TYPE. If you don't specify any
+        tags, the script will prompt you to do so interactively. This may crash
         automatic launching scripts that make calls to sbatch, so remember to add your tags!
         """,
         add_help=True,
@@ -264,7 +280,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--project",
         type=str,
-        nargs="?",
         default="default",
         help="project name, overrides Slurm script comments",
     )
@@ -272,21 +287,35 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tags",
         type=str,
-        nargs="?",
         help=f"project stage tag and run type tag (comma-separated), overrides Slurm script comments. {project_stage_info}. {run_type_info}",
     )
-    parser.add_argument("script_path", type=str, help="Slurm script path")
-    parser.add_argument("script_args", nargs="*", help="Slurm script arguments")
-    args = parser.parse_args()
+    args, sbatch_args = parser.parse_known_args()
 
-    # Look for Slurm script comments
-    with open(args.script_path, "r") as f:
-        script_src = f.read()
-    comment_match = re.search(r"#SBATCH --comment=[\"']?([-\w,]+)[\"']?", script_src)
+    command_comment, sbatch_args = extract_sbatch_comment(sbatch_args)
+    command_tags = parse_tag_string(command_comment) if command_comment else None
+
+    # Command-line options take precedence over script directives in sbatch.
+    # Native sbatch modes without a script, such as --wrap, remain usable with
+    # --tags or --comment.
+    comment_match = None
+    script_path = None
+    if not command_comment:
+        for argument in sbatch_args:
+            if os.path.isfile(argument):
+                script_path = argument
+                break
+    if script_path:
+        with open(script_path, "r") as f:
+            script_src = f.read()
+        comment_match = re.search(
+            r"#SBATCH --comment=[\"']?([-\w,]+)[\"']?", script_src
+        )
 
     # Define tags
     if args.tags:
         tags = parse_tag_string(",".join([args.project, args.tags]))
+    elif command_tags:
+        tags = command_tags
     elif comment_match:
         tag_string = comment_match.group(1)
         tags = parse_tag_string(tag_string)
@@ -298,28 +327,7 @@ if __name__ == "__main__":
             run_type = prompt_index(run_type_tags, "run type")
         tags = tag_comment(args.project, project_stage, run_type)
 
-    # Run original sbatch command and save tags
-    result = subprocess.run(
-        ["/usr/bin/sbatch", args.script_path, *args.script_args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-    )
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
-
-    # Preserve the real sbatch failure instead of trying to update a job that
-    # was never created. In particular, slurm_job_id is unavailable on this
-    # path and attempting to use it would hide the scheduler's useful error.
-    if result.returncode != 0:
-        sys.exit(result.returncode)
-
-    slurm_id_match = re.search(r"Submitted batch job (\d+)", result.stdout)
-    if slurm_id_match:
-        slurm_job_id = slurm_id_match.group(1)
-
-    save_tags(slurm_job_id, tags)
+    # Supply the comment to sbatch itself. This atomically stores it with the
+    # job and avoids a race-prone post-submission ``scontrol update`` call.
+    result = subprocess.run(["/usr/bin/sbatch", f"--comment={tags}", *sbatch_args])
     sys.exit(result.returncode)

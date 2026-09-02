@@ -65,6 +65,12 @@ sbatch --project <project name> ...
 ### Tags
 
 After installing the wrapper, you can run `sbatch` as usual if your Slurm script already has appropriate tags.
+Native `sbatch` options and script arguments are forwarded unchanged, so they
+can be used in their usual positions. For example:
+```
+sbatch --project my_project --tags explore,debug \
+    -A ecv@a100 --constraint=a100 train.slurm config.yaml
+```
 
 Otherwise, you should use one of the following options to pass the tags in the command line:
 
@@ -73,6 +79,10 @@ Otherwise, you should use one of the following options to pass the tags in the c
     sbatch --tags <project stage>,<run type> ...
     ```
     > **NOTE**: The wrapper has some typo tolerance, but the order of the tags is important
+
+The native Slurm `--comment` option is reserved for compute-accounting metadata
+when the wrapper is installed. Free-form researcher comments are not supported
+there.
 
 - If you want to use at least one custom tag:
     ```

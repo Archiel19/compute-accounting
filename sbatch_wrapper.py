@@ -309,6 +309,14 @@ if __name__ == "__main__":
     command_comment, sbatch_args = extract_sbatch_comment(sbatch_args)
     command_tags = parse_tag_string(command_comment) if command_comment else None
 
+    if not sbatch_args and not args.tags and not command_comment:
+        print(
+            f"{ERROR_PREFIX} No Slurm script was supplied. Pass a script, "
+            "use --wrap, or provide --tags for a script read from stdin.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     # Command-line options take precedence over script directives in sbatch.
     # Native sbatch modes without a script, such as --wrap, remain usable with
     # --tags or --comment.

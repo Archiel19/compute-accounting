@@ -291,6 +291,15 @@ if __name__ == "__main__":
         tag_string = comment_match.group(1)
         tags = parse_tag_string(tag_string)
     else:
+        if not sys.stdin.isatty():
+            print(
+                "[ERROR] No tags specified and stdin is not interactive. "
+                "Add an '#SBATCH --comment=<project>,<project-stage>,<run-type>' "
+                "directive or pass --project and --tags.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         print("[WARNING] No tags specified for the job!")
         project_stage = prompt_index(project_stage_tags, "project stage")
         run_type = ""

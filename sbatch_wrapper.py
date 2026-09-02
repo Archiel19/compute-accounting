@@ -311,6 +311,12 @@ if __name__ == "__main__":
     if result.stderr:
         print(result.stderr, file=sys.stderr, end="")
 
+    # Preserve the real sbatch failure instead of trying to update a job that
+    # was never created. In particular, slurm_job_id is unavailable on this
+    # path and attempting to use it would hide the scheduler's useful error.
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
     slurm_id_match = re.search(r"Submitted batch job (\d+)", result.stdout)
     if slurm_id_match:
         slurm_job_id = slurm_id_match.group(1)

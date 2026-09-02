@@ -44,6 +44,7 @@ run_type_info = """Run type tags:
 """
 
 standalone_tags = ["data"]
+ERROR_PREFIX = "[COMPUTE ACCOUNTING ERROR]"
 
 
 def signal_handler(sig, frame):
@@ -69,7 +70,7 @@ def parse_tag_string(tag_string: str):
     tags = tag_string.split(",")
     if len(tags) < 2:
         print(
-            f"[ERROR] Expected at least two comma-separated values in comment field, but found: {tags}"
+            f"{ERROR_PREFIX} Expected at least two comma-separated values in comment field, but found: {tags}"
         )
         sys.exit(1)
 
@@ -82,7 +83,7 @@ def parse_tag_string(tag_string: str):
     else:  # First tag is project stage; project name is missing
         if len(tags) > 2:
             print(
-                "[ERROR] Ambiguous tag string: a project name cannot be "
+                f"{ERROR_PREFIX} Ambiguous tag string: a project name cannot be "
                 "identical to a project stage tag"
             )
             sys.exit(1)
@@ -90,18 +91,18 @@ def parse_tag_string(tag_string: str):
         project_stage = tmp_project_stage
 
     if not project_stage:
-        print(f"[ERROR] Could not match {tags[0]} to any project stage tags")
+        print(f"{ERROR_PREFIX} Could not match {tags[0]} to any project stage tags")
         print(project_stage_info)
         sys.exit(1)
 
     if len(tags) < 1:
-        print("[ERROR] Expected a run type tag, but there are no more tags left to parse")
+        print(f"{ERROR_PREFIX} Expected a run type tag, but there are no more tags left to parse")
         print(run_type_info)
         sys.exit(1)
 
     run_type = verify_and_fix_tag(tags[1], run_type_tags)
     if not run_type:
-        print(f"[ERROR] Could not match {tags[1]} to any run type tags")
+        print(f"{ERROR_PREFIX} Could not match {tags[1]} to any run type tags")
         print(run_type_info)
         sys.exit(1)
 
@@ -150,7 +151,7 @@ def clean_project_name(raw_project_name: str):
     if re.search(r"[\w-]", tag) and re.search(r"[a-zA-Z0-9]", tag):
         return tag
     print(
-        "[ERROR] Project names must contain at least one alphanumeric "
+        f"{ERROR_PREFIX} Project names must contain at least one alphanumeric "
         "character, and optional dashes and underscores"
     )
     sys.exit(1)
@@ -176,14 +177,14 @@ def tag_comment(project_name: str, project_stage: str, run_type: str = None):
         If any of the required components are missing.
     """
     if not project_name:
-        print("[ERROR] Project name missing!")
+        print(f"{ERROR_PREFIX} Project name missing!")
         sys.exit(1)
     if not project_stage:
-        print("[ERROR] Project stage tag missing!")
+        print(f"{ERROR_PREFIX} Project stage tag missing!")
         print(project_stage_info)
         sys.exit(1)
     if project_stage not in standalone_tags and not run_type:
-        print("[ERROR] Run type tag missing!")
+        print(f"{ERROR_PREFIX} Run type tag missing!")
         print(run_type_info)
         sys.exit(1)
     tags = [project_name, project_stage]
@@ -247,7 +248,7 @@ def extract_sbatch_comment(sbatch_args: list):
         argument = sbatch_args[index]
         if argument == "--comment":
             if index + 1 == len(sbatch_args):
-                print("[ERROR] --comment requires a value", file=sys.stderr)
+                print(f"{ERROR_PREFIX} --comment requires a value", file=sys.stderr)
                 sys.exit(2)
             value = sbatch_args[index + 1]
             index += 2
@@ -260,7 +261,7 @@ def extract_sbatch_comment(sbatch_args: list):
             continue
 
         if comment is not None:
-            print("[ERROR] Specify at most one --comment option", file=sys.stderr)
+            print(f"{ERROR_PREFIX} Specify at most one --comment option", file=sys.stderr)
             sys.exit(2)
         comment = value
 
@@ -300,7 +301,7 @@ if __name__ == "__main__":
         args.project = clean_project_name(args.project)
         if args.project in project_stage_tags:
             print(
-                "[ERROR] A project name cannot be identical to a project "
+                f"{ERROR_PREFIX} A project name cannot be identical to a project "
                 "stage tag"
             )
             sys.exit(1)
@@ -325,6 +326,22 @@ if __name__ == "__main__":
             r"#SBATCH --comment=[\"']?([-\w,]+)[\"']?", script_src
         )
 
+    is_wrap_submission = any(
+        argument == "--wrap" or argument.startswith("--wrap=")
+        for argument in sbatch_args
+    )
+    if (
+        sbatch_args              # the user passed native sbatch arguments
+        and not script_path      # none is an existing local script file
+        and not args.tags        # no wrapper --tags source
+        and not command_comment  # no native --comment source
+        and not is_wrap_submission
+    ):
+        # A missing script must be reported by native sbatch. Do not mistake
+        # it for a submission with missing accounting tags and prompt instead.
+        result = subprocess.run(["/usr/bin/sbatch", *sbatch_args])
+        sys.exit(result.returncode)
+
     # Define tags
     if args.tags:
         tags = parse_tag_string(",".join([args.project, args.tags]))
@@ -336,7 +353,7 @@ if __name__ == "__main__":
     else:
         if not sys.stdin.isatty():
             print(
-                "[ERROR] No tags specified and stdin is not interactive. "
+                f"{ERROR_PREFIX} No tags specified and stdin is not interactive. "
                 "Add an '#SBATCH --comment=<project>,<project-stage>,<run-type>' "
                 "directive or pass --project and --tags.",
                 file=sys.stderr,

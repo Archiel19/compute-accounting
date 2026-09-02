@@ -80,6 +80,12 @@ def parse_tag_string(tag_string: str):
         tags = tags[1:]  # Pop project name tag
         project_stage = verify_and_fix_tag(tags[0], project_stage_tags)
     else:  # First tag is project stage; project name is missing
+        if len(tags) > 2:
+            print(
+                "[ERROR] Ambiguous tag string: a project name cannot be "
+                "identical to a project stage tag"
+            )
+            sys.exit(1)
         project_name = "default"
         project_stage = tmp_project_stage
 
@@ -289,6 +295,15 @@ if __name__ == "__main__":
         help=f"project stage tag and run type tag (comma-separated), overrides Slurm script comments. {project_stage_info}. {run_type_info}",
     )
     args, sbatch_args = parser.parse_known_args()
+
+    if args.project != "default":
+        args.project = clean_project_name(args.project)
+        if args.project in project_stage_tags:
+            print(
+                "[ERROR] A project name cannot be identical to a project "
+                "stage tag"
+            )
+            sys.exit(1)
 
     command_comment, sbatch_args = extract_sbatch_comment(sbatch_args)
     command_tags = parse_tag_string(command_comment) if command_comment else None

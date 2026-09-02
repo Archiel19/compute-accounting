@@ -64,8 +64,11 @@ sbatch --project <project name> ...
 
 ### Tags
 
-After installing the wrapper, you can run `sbatch` as usual if your Slurm script already has appropriate tags.
-
+After installing the wrapper, you can run `sbatch` as usual when your Slurm
+script contains a valid compute-accounting comment, for example:
+```
+#SBATCH --comment=my_project,explore,debug
+```
 Otherwise, you should use one of the following options to pass the tags in the command line:
 
 - If the standard tags are enough in your case:
@@ -74,12 +77,14 @@ Otherwise, you should use one of the following options to pass the tags in the c
     ```
     > **NOTE**: The wrapper has some typo tolerance, but the order of the tags is important
 
-- If you want to use at least one custom tag:
-    ```
-    sbatch --project_stage <project stage> --run_type <run type> ...
-    ```
-If you do not specify any tags anywhere, the wrapper will prompt you for them interactively. This might break your fancy
-launching scripts, so be careful!
+This compute accounting script uses the native `--comment` option to store compute-accounting metadata
+So personal "--comment" are not supported anymore. Contact us if they were useful for your workflow.
+
+If you do not specify any tags, the wrapper prompts for them when run from an
+interactive terminal. In non-interactive environments, such as Hydra Submitit
+or CI jobs, it exits with an error instead of waiting for input. Automated
+launchers must therefore provide a valid Slurm `--comment` directive or use
+the wrapper's `--project` and `--tags` options.
 
 
 # Install
